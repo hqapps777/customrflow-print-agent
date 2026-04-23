@@ -1,0 +1,234 @@
+name: release binaries
+
+# Triggered when a v* tag is pushed. Produces signed + notarized binaries for
+# macOS (Apple Developer ID + notarytool), Windows binaries signed via
+# SignPath.io (OSS free tier), and Linux tarballs. All artifacts are attached
+# to a GitHub Release. The Customrflow dashboard links to this repo's latest
+# release for its "Download Agent" dropdown.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ─────────────────────────────
+  # 1. Produce unsigned binaries for all targets.
+  # ─────────────────────────────
+  package:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract tag version
+        id: meta
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+      - name: Build (BUILD_TYPE=prod locks the backend URL)
+        run: BUILD_TYPE=prod npm run build
+      - run: BUILD_TYPE=prod npm run package
+
+      - name: List produced binaries
+        run: ls -la bin/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raw-binaries
+          path: bin/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ─────────────────────────────
+  # 2. macOS: sign + notarize + staple via a hosted macOS runner.
+  #    Required secrets:
+  #      APPLE_DEVELOPER_ID_APP     – "Developer ID Application: Customrflow … (TEAMID)"
+  #      APPLE_DEVELOPER_ID_INST    – "Developer ID Installer:  Customrflow … (TEAMID)"
+  #      APPLE_ID                   – your Apple ID email
+  #      APPLE_TEAM_ID              – 10-char team id
+  #      APPLE_APP_PASSWORD         – app-specific password from appleid.apple.com
+  #      MACOS_CERT_P12_BASE64      – base64 of combined .p12 (App + Installer)
+  #      MACOS_CERT_PASSWORD        – passphrase for the .p12
+  # ─────────────────────────────
+  macos-sign:
+    needs: package
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: raw-binaries
+          path: bin
+
+      - name: Import signing keychain
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN=build.keychain
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -t 3600 -u "$KEYCHAIN"
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > cert.p12
+          security import cert.p12 -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          rm cert.p12
+
+      - name: Codesign arm64 + x64 binaries
+        env:
+          APPLE_DEVELOPER_ID_APP: ${{ secrets.APPLE_DEVELOPER_ID_APP }}
+        run: |
+          for bin in bin/xflow-print-agent-macos-*; do
+            codesign --force --options runtime --timestamp --sign "$APPLE_DEVELOPER_ID_APP" "$bin"
+            codesign --verify --verbose "$bin"
+          done
+
+      - name: Build signed .pkg installer (arm64)
+        env:
+          APPLE_DEVELOPER_ID_INST: ${{ secrets.APPLE_DEVELOPER_ID_INST }}
+        run: |
+          mkdir -p pkgroot/usr/local/bin
+          cp bin/xflow-print-agent-macos-arm64 pkgroot/usr/local/bin/xflow-print-agent
+          pkgbuild \
+            --root pkgroot \
+            --identifier app.customrflow.print-agent \
+            --version "${{ needs.package.outputs.version }}" \
+            --install-location / \
+            --sign "$APPLE_DEVELOPER_ID_INST" \
+            bin/CustomrflowPrintAgent-macos-arm64.pkg
+          rm -r pkgroot
+
+      - name: Build signed .pkg installer (x64)
+        env:
+          APPLE_DEVELOPER_ID_INST: ${{ secrets.APPLE_DEVELOPER_ID_INST }}
+        run: |
+          mkdir -p pkgroot/usr/local/bin
+          cp bin/xflow-print-agent-macos-x64 pkgroot/usr/local/bin/xflow-print-agent
+          pkgbuild \
+            --root pkgroot \
+            --identifier app.customrflow.print-agent \
+            --version "${{ needs.package.outputs.version }}" \
+            --install-location / \
+            --sign "$APPLE_DEVELOPER_ID_INST" \
+            bin/CustomrflowPrintAgent-macos-x64.pkg
+
+      - name: Notarize + staple both .pkg installers
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          for pkg in bin/CustomrflowPrintAgent-macos-*.pkg; do
+            xcrun notarytool submit "$pkg" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --wait
+            xcrun stapler staple "$pkg"
+            xcrun stapler validate "$pkg"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-signed
+          path: |
+            bin/CustomrflowPrintAgent-macos-*.pkg
+            bin/xflow-print-agent-macos-*
+
+  # ─────────────────────────────
+  # 3. Windows: submit unsigned .exe to SignPath.io for free OSS signing.
+  #    Requires the project to be registered at signpath.io.
+  # ─────────────────────────────
+  windows-sign:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: raw-binaries
+          path: bin
+
+      - name: Submit exe to SignPath for signing
+        if: ${{ env.SIGNPATH_READY == 'true' }}
+        env:
+          SIGNPATH_READY: ${{ secrets.SIGNPATH_API_TOKEN && 'true' || 'false' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORG_ID }}
+          project-slug: customrflow-print-agent
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: windows-exe
+          github-artifact-id: ${{ needs.package.outputs.windows-artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-windows
+
+      - name: Upload signed windows binary (when SignPath present)
+        if: ${{ env.SIGNPATH_READY == 'true' }}
+        env:
+          SIGNPATH_READY: ${{ secrets.SIGNPATH_API_TOKEN && 'true' || 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-signed
+          path: signed-windows/
+
+      - name: Fallback — upload unsigned windows binary with warning
+        if: ${{ env.SIGNPATH_READY != 'true' }}
+        env:
+          SIGNPATH_READY: ${{ secrets.SIGNPATH_API_TOKEN && 'true' || 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: bin/xflow-print-agent-win-x64.exe
+
+  # ─────────────────────────────
+  # 4. Publish a GitHub Release with all artifacts.
+  # ─────────────────────────────
+  release:
+    needs: [package, macos-sign, windows-sign]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts for release
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.pkg' -o -name 'xflow-print-agent-*' \) -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.package.outputs.version }}
+          name: Customrflow Print Agent ${{ needs.package.outputs.version }}
+          body: |
+            Customrflow Print Agent release.
+
+            **Downloads:**
+            - **macOS (Apple Silicon):** `CustomrflowPrintAgent-macos-arm64.pkg`
+            - **macOS (Intel):** `CustomrflowPrintAgent-macos-x64.pkg`
+            - **Windows (x64):** `xflow-print-agent-win-x64.exe` (signed via SignPath.io)
+            - **Linux x64:** `xflow-print-agent-linux-x64`
+            - **Linux ARM64 (Raspberry Pi 4/5):** `xflow-print-agent-linux-arm64`
+            - **Docker:** `ghcr.io/hqapps777/customrflow-print-agent:v${{ needs.package.outputs.version }}`
+
+            See the in-app setup guide at Settings → Drucker & Bons → Agents.
+          files: release/*
+          draft: false
+          prerelease: false

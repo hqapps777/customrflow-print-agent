@@ -1,0 +1,27 @@
+# Minimal docker-compose for running the Customrflow Print Agent on a
+# customer machine. Needs --network host for mDNS discovery and local
+# TCP:9100 access to the printers.
+#
+# Usage:
+#   docker compose -f docker-compose.example.yml up -d
+#   → open http://<docker-host-ip>:38701, enter pairing code
+#
+# Host network is required on Linux; on macOS/Windows Docker Desktop it's
+# simulated — mDNS discovery won't work, use manual IP entry instead.
+
+services:
+  print-agent:
+    image: ghcr.io/hqapps777/customrflow-print-agent:latest
+    container_name: customrflow-print-agent
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - agent-config:/data
+    # Uncomment to override the backend URL in staging/local builds.
+    # The shipped prod image ignores this — rebuild with BUILD_TYPE=dev
+    # if you need it.
+    # environment:
+    #   XFLOW_BACKEND_URL: https://api.staging.customrflow.app
+
+volumes:
+  agent-config:
