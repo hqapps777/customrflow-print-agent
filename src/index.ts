@@ -34,9 +34,27 @@ async function main(): Promise<void> {
       log.warn({ jobId: job.jobId }, 'duplicate job suppressed (already in idempotency cache)');
       return { status: 'PRINTED' };
     }
-    const printer = cfg.printers.find((p) => p.id === job.printerId);
+    // Look up printer locally first; fall back to data shipped in the job
+    // payload if it's a printer the dashboard created without a local mirror.
+    // Backend always sends host/port/protocol/paperWidth in job:new, so the
+    // agent never needs a local lookup as long as the job arrived.
+    let printer = cfg.printers.find((p) => p.id === job.printerId);
     if (!printer) {
-      return { status: 'FAILED', error: `unknown printer ${job.printerId}` };
+      const j: any = job;
+      if (j.host || j.cupsQueue) {
+        printer = {
+          id: job.printerId,
+          displayName: j.printerId,
+          protocol: (j.protocol ?? 'ESCPOS_TCP') as any,
+          host: j.host,
+          port: j.port ?? 9100,
+          cupsQueue: j.cupsQueue,
+          paperWidth: (j.paperWidth ?? 'MM_80') as any,
+        };
+        log.info({ jobId: job.jobId, printerId: job.printerId }, 'printing via job-payload (no local mirror)');
+      } else {
+        return { status: 'FAILED', error: `unknown printer ${job.printerId} and no payload data` };
+      }
     }
     try {
       if (printer.protocol === 'ESCPOS_TCP' || printer.protocol === 'STAR_LINE_TCP') {
@@ -95,10 +113,18 @@ async function main(): Promise<void> {
     });
     client.start();
     setInterval(() => {
-      const statuses = cfg.printers.map(
-        (p) =>
-          printerStatus.get(p.id) ?? {
-            id: p.id,
+      // Report status for both locally-configured printers AND any printer
+      // we've successfully driven via dashboard-pushed jobs (job-payload
+      // fallback). Without this, dashboard-created printers stay frozen at
+      // UNKNOWN/OFFLINE in the cloud forever.
+      const allIds = new Set<string>([
+        ...cfg.printers.map((p) => p.id),
+        ...printerStatus.keys(),
+      ]);
+      const statuses = Array.from(allIds).map(
+        (id) =>
+          printerStatus.get(id) ?? {
+            id,
             status: 'UNKNOWN' as const,
           },
       );
