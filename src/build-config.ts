@@ -16,6 +16,6 @@ export type BuildType = 'dev' | 'prod';
 export const BUILD_TYPE: BuildType =
   (process.env.BUILD_TYPE as BuildType) === 'prod' ? 'prod' : 'dev';
 
-export const PROD_BACKEND_URL = 'https://api.customrflow.app';
+export const PROD_BACKEND_URL = 'https://api.customrflow.com';
 
 export const isProdBuild = (): boolean => BUILD_TYPE === 'prod';
