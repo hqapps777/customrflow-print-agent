@@ -30,6 +30,7 @@ export class BackendClient {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 60_000,
+      reconnectionAttempts: Infinity,
       transports: ['websocket'],
     });
     this.socket.on('connect', () => {
@@ -39,6 +40,21 @@ export class BackendClient {
     this.socket.on('disconnect', (reason) => {
       this.log.warn(`backend disconnected: ${reason}`);
       this.opts.onDisconnect?.(reason);
+      // socket.io-client stops auto-reconnecting on 'io server disconnect'
+      // (deliberate server kick) and 'io client disconnect' (we called .disconnect()).
+      // The dashboard's "Neu verbinden" button uses disconnectSockets(true), which
+      // hits the 'io server disconnect' path — without this, the agent would
+      // stay dead until the user restarts it by hand. Retry after a grace period
+      // so a freshly-rotated JWT / un-revoked agent comes back on its own.
+      if (reason === 'io server disconnect') {
+        setTimeout(() => {
+          try {
+            this.socket?.connect();
+          } catch {
+            // swallow — next interval retry will try again
+          }
+        }, 5_000);
+      }
     });
     this.socket.on('connect_error', (err) => {
       this.log.error(`connect_error: ${err.message}`);
