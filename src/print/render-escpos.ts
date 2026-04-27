@@ -24,20 +24,28 @@ export function renderEscPos(
     columns: columnsFor(paperWidth),
   });
   enc.initialize();
+  // Some Star firmwares ignore the very first formatting command if no
+  // line-context exists yet. Force a known clean state explicitly so the
+  // first text line honors center/right alignment.
+  enc.align('left').bold(false).size(1, 1);
 
   for (const el of elements) {
     switch (el.type) {
       case 'text': {
-        if (el.bold) enc.bold(true);
-        if (el.align === 'center') enc.align('center');
-        else if (el.align === 'right') enc.align('right');
-        if (el.size === 'xl') enc.size(2, 2);
-        else if (el.size === 'lg') enc.size(1, 2);
+        // Always set attributes explicitly (no conditional) so each line
+        // starts with a known state — otherwise inherited flags from
+        // previous lines bleed through and the FIRST line of a section
+        // sometimes prints with the wrong alignment.
+        const align: 'left' | 'center' | 'right' =
+          el.align === 'center' ? 'center' : el.align === 'right' ? 'right' : 'left';
+        const w = el.size === 'xl' ? 2 : 1;
+        const h = el.size === 'xl' ? 2 : el.size === 'lg' ? 2 : 1;
+        enc.align(align).bold(!!el.bold).size(w, h);
         enc.text(el.value);
         enc.newline();
-        enc.size(1, 1);
-        enc.align('left');
-        enc.bold(false);
+        // Reset to defaults so non-text elements (line, blank, qrcode) inherit
+        // a clean state.
+        enc.size(1, 1).align('left').bold(false);
         break;
       }
       case 'line': {
