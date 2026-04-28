@@ -217,6 +217,20 @@ function renderIndex(): string {
   .row { display: flex; gap: .5em; align-items: center; flex-wrap: wrap; }
   .stack { display: flex; flex-direction: column; gap: .5em; }
   .toast { position: fixed; bottom: 1em; right: 1em; background: #111; color: white; padding: .8em 1.2em; border-radius: 8px; }
+  details.help { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 1em; }
+  details.help > summary { cursor: pointer; padding: .9em 1.2em; font-weight: 600; user-select: none; list-style: none; }
+  details.help > summary::-webkit-details-marker { display: none; }
+  details.help > summary::before { content: '▸ '; color: #f97316; display: inline-block; transition: transform .2s; }
+  details.help[open] > summary::before { content: '▾ '; }
+  details.help > div { padding: 0 1.2em 1em 1.2em; }
+  details.help h4 { margin: 1em 0 .3em 0; font-size: .95em; }
+  details.help h4:first-child { margin-top: 0; }
+  details.help code, details.help pre { background: #0f172a; color: #f1f5f9; border-radius: 4px; padding: .2em .4em; font-size: .85em; }
+  details.help pre { padding: .7em .9em; overflow-x: auto; position: relative; }
+  details.help pre button.copy { position: absolute; top: .4em; right: .4em; background: rgba(255,255,255,.1); border: 0; color: #f1f5f9; cursor: pointer; padding: .2em .5em; border-radius: 4px; font-size: .75em; }
+  details.help pre button.copy:hover { background: rgba(255,255,255,.2); }
+  details.help ol, details.help ul { padding-left: 1.4em; }
+  details.help li { padding: .15em 0; border: 0; display: list-item; }
 </style>
 </head>
 <body>
@@ -232,6 +246,51 @@ function renderIndex(): string {
   </div>
   <div id="scan-result"></div>
 </div>
+
+<details class="help">
+  <summary>Anleitung & Hilfe</summary>
+  <div>
+    <h4>Nächste Schritte</h4>
+    <ol>
+      <li>Im Customrflow-Dashboard einloggen → <em>Settings → Drucker → Agents</em></li>
+      <li><strong>"Neuen Agent pairen"</strong> klicken — 6-stelligen Code merken</li>
+      <li>Hier oben den Code eingeben + Anzeigename vergeben → <strong>Pairen</strong></li>
+      <li>Im Dashboard unter <em>Drucker</em> einen Drucker hinzufügen (IP-Adresse + Modell)</li>
+      <li>"Identify"-Knopf am Drucker im Dashboard → Test-Bon kommt am Drucker raus</li>
+    </ol>
+
+    <h4>Agent neu starten</h4>
+    <p class="muted">Falls Drucken hängt oder die Verbindung nicht zustande kommt:</p>
+    <pre id="cmd-restart-mac"><button class="copy" data-target="cmd-restart-mac">Kopieren</button>curl -sSL https://app.customrflow.com/agent/install.sh | bash -s restart</pre>
+    <p class="muted" style="margin-top:.5em">Auf Windows in PowerShell:</p>
+    <pre id="cmd-restart-win"><button class="copy" data-target="cmd-restart-win">Kopieren</button>iex (irm https://app.customrflow.com/agent/install.ps1) restart</pre>
+
+    <h4>Aktualisieren</h4>
+    <p class="muted">Einfach den Install-Befehl nochmal ausführen — er ersetzt das Binary mit der aktuellen Version:</p>
+    <pre id="cmd-install-mac"><button class="copy" data-target="cmd-install-mac">Kopieren</button>curl -sSL https://app.customrflow.com/agent/install.sh | bash</pre>
+
+    <h4>Deinstallieren</h4>
+    <pre id="cmd-uninstall-mac"><button class="copy" data-target="cmd-uninstall-mac">Kopieren</button>curl -sSL https://app.customrflow.com/agent/uninstall.sh | bash</pre>
+    <pre id="cmd-uninstall-win"><button class="copy" data-target="cmd-uninstall-win">Kopieren</button>iex (irm https://app.customrflow.com/agent/uninstall.ps1)</pre>
+    <p class="muted">Pairing-Daten bleiben unter <code>~/.config/xflow-print-agent/</code> erhalten — manuell löschen falls gewünscht.</p>
+
+    <h4>Häufige Fehler</h4>
+    <ul>
+      <li><strong>"Status: nicht gepaart" obwohl Code eingegeben:</strong> Code ist nur 10 Min gültig — neuen im Dashboard generieren.</li>
+      <li><strong>Drucker druckt nicht beim Identify-Test:</strong> Mac/PC und Drucker müssen im <em>gleichen WLAN</em> sein. Drucker-IP per Drucker-Selbsttest checken.</li>
+      <li><strong>Drucker bleibt im Dashboard "OFFLINE":</strong> normal solange noch nichts gedruckt wurde — Status wird nach erstem erfolgreichen Druck aktiv.</li>
+      <li><strong>Browser zeigt "Verbindung fehlgeschlagen" auf localhost:38701:</strong> Agent läuft nicht. Tab schließen, oben gezeigten Restart-Befehl ausführen, Tab neu öffnen.</li>
+      <li><strong>"Token revoked" in den Logs:</strong> Im Dashboard wurde der Agent revoked. Hier in der UI auf <em>Pairing zurücksetzen</em> (oben) und neu pairen.</li>
+    </ul>
+
+    <h4>Logs anschauen (wenn Support nachfragt)</h4>
+    <p class="muted">macOS / Linux:</p>
+    <pre id="cmd-log-mac"><button class="copy" data-target="cmd-log-mac">Kopieren</button>tail -f /tmp/customrflow-print-agent.log</pre>
+    <p class="muted">Windows (PowerShell):</p>
+    <pre id="cmd-log-win"><button class="copy" data-target="cmd-log-win">Kopieren</button>Get-Content $env:LOCALAPPDATA\\Customrflow\\agent.log -Wait</pre>
+  </div>
+</details>
+
 <div id="toast-slot"></div>
 
 <script>
@@ -244,6 +303,26 @@ function toast(msg, bg='#111') {
   el('toast-slot').appendChild(t);
   setTimeout(() => t.remove(), 3500);
 }
+
+// Copy-to-clipboard for the help section. The <pre> contains a button.copy and
+// the actual command text — strip the button content before copying so the
+// clipboard never includes the word "Kopieren".
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button.copy');
+  if (!btn) return;
+  const pre = document.getElementById(btn.dataset.target);
+  if (!pre) return;
+  const cmd = Array.from(pre.childNodes)
+    .filter(n => n.nodeType === Node.TEXT_NODE)
+    .map(n => n.textContent)
+    .join('').trim();
+  try {
+    await navigator.clipboard.writeText(cmd);
+    toast('Befehl kopiert', '#059669');
+  } catch {
+    toast('Kopieren fehlgeschlagen', '#dc2626');
+  }
+});
 
 async function renderAll() {
   const s = await fetch('/api/status').then(r => r.json());

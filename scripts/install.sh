@@ -76,6 +76,20 @@ cmd_install() {
     install_linux_shortcut
   fi
 
+  blue "→ Warte auf Agent-Start…"
+  # Poll für ein paar Sekunden bis der UI-Port antwortet — sonst öffnet
+  # Safari/Chrome eine "Verbindung fehlgeschlagen"-Seite weil der Agent
+  # noch im Boot ist (TS-Compile + Socket-Connect dauern 2-5 s).
+  local tries=0
+  while ! curl -sfo /dev/null --max-time 1 "$UI_URL"; do
+    tries=$((tries + 1))
+    if [ "$tries" -gt 15 ]; then
+      yellow "  Agent antwortet noch nicht — öffne UI trotzdem (kommt gleich von alleine)"
+      break
+    fi
+    sleep 1
+  done
+
   blue "→ Öffne Pairing-UI im Browser…"
   if [ "$OS" = "macos" ]; then
     open "$UI_URL" >/dev/null 2>&1 || true

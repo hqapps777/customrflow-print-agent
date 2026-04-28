@@ -95,6 +95,17 @@ URL=$UiUrl
     Write-Ok 'Desktop-Verknüpfung angelegt: "Drucker-Agent öffnen"'
   }
 
+  Write-Info 'Warte auf Agent-Start…'
+  # Poll für ein paar Sekunden bis der UI-Port antwortet — sonst zeigt
+  # der Browser "Verbindung fehlgeschlagen" weil der Agent noch im Boot ist.
+  for ($i = 0; $i -lt 15; $i++) {
+    try {
+      $r = Invoke-WebRequest -Uri $UiUrl -TimeoutSec 1 -UseBasicParsing
+      if ($r.StatusCode -eq 200) { break }
+    } catch {}
+    Start-Sleep -Seconds 1
+  }
+
   Start-Process $UiUrl
   Write-Host ''
   Write-Ok 'Installation abgeschlossen'
