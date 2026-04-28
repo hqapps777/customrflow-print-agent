@@ -22,7 +22,7 @@ iex (irm https://app.customrflow.com/agent/install.ps1)
 Nach der Installation:
 
 - Browser öffnet sich automatisch mit der lokalen Agent-UI
-  (`http://localhost:38702/`)
+  (`http://localhost:38701/`)
 - Auf dem Desktop liegt eine Verknüpfung **„Drucker-Agent öffnen"**
 - Im Customrflow-Dashboard unter **Settings → Drucker → Agents** den
   Pairing-Code generieren und in der Agent-UI eingeben

@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 
 $BinName    = 'xflow-print-agent.exe'
 $TaskName   = 'Customrflow Print Agent'
-$UiUrl      = 'http://localhost:38702/'
+$UiUrl      = 'http://localhost:38701/'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Customrflow'
 $BinPath    = Join-Path $InstallDir $BinName
 # Default download mirror (deine eigene Domain). Override via env:
@@ -47,7 +47,10 @@ function Cmd-Install {
   $asset = "xflow-print-agent-win-$arch.exe"
   $url   = "$BaseUrl/bin/$asset"
 
-  Write-Info "Lade Binary von $url"
+  Write-Info "Lade Binary (~60 MB) von $url"
+  # Force the progress preference on so the customer sees a download bar
+  # instead of a frozen-looking terminal during the multi-second pull.
+  $ProgressPreference = 'Continue'
   try {
     Invoke-WebRequest -Uri $url -OutFile "$BinPath.new" -UseBasicParsing
   } catch {

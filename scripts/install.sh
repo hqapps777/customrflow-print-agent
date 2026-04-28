@@ -18,7 +18,7 @@ set -euo pipefail
 
 BIN_NAME="xflow-print-agent"
 LABEL="app.customrflow.print-agent"
-UI_URL="http://localhost:38702/"
+UI_URL="http://localhost:38701/"
 INSTALL_DIR="$HOME/.local/bin"
 BIN_PATH="$INSTALL_DIR/$BIN_NAME"
 # Default download mirror (deine eigene Domain). Override via env:
@@ -55,8 +55,11 @@ cmd_install() {
   blue "→ Customrflow Print Agent — Installation für ${OS}/${ARCH}"
   mkdir -p "$INSTALL_DIR"
 
-  blue "→ Lade Binary von ${DOWNLOAD_URL}"
-  if ! curl -fsSL --retry 3 -o "${BIN_PATH}.new" "$DOWNLOAD_URL"; then
+  blue "→ Lade Binary (~60 MB) von ${DOWNLOAD_URL}"
+  # --progress-bar shows a single-line progress indicator so the customer
+  # sees movement during the multi-second download instead of thinking the
+  # script froze.
+  if ! curl -fL --progress-bar --retry 3 -o "${BIN_PATH}.new" "$DOWNLOAD_URL"; then
     red "Download fehlgeschlagen: $DOWNLOAD_URL"
     red "  Bitte prüfen ob die Datei auf dem Server existiert."
     exit 1
