@@ -16,12 +16,14 @@
 
 set -euo pipefail
 
-REPO="hqapps777/customrflow-print-agent"
 BIN_NAME="xflow-print-agent"
 LABEL="app.customrflow.print-agent"
 UI_URL="http://localhost:38702/"
 INSTALL_DIR="$HOME/.local/bin"
 BIN_PATH="$INSTALL_DIR/$BIN_NAME"
+# Default download mirror (deine eigene Domain). Override via env:
+#   CUSTOMRFLOW_AGENT_BASE_URL=https://my-server.local/agent ./install.sh
+BASE_URL="${CUSTOMRFLOW_AGENT_BASE_URL:-https://customrflow.com/agent}"
 
 red()    { printf "\033[31m%s\033[0m\n" "$*"; }
 green()  { printf "\033[32m%s\033[0m\n" "$*"; }
@@ -47,7 +49,7 @@ detect_arch() {
 OS="$(detect_os)"
 ARCH="$(detect_arch)"
 ASSET="${BIN_NAME}-${OS}-${ARCH}"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
+DOWNLOAD_URL="${BASE_URL}/bin/${ASSET}"
 
 cmd_install() {
   blue "→ Customrflow Print Agent — Installation für ${OS}/${ARCH}"
@@ -55,8 +57,8 @@ cmd_install() {
 
   blue "→ Lade Binary von ${DOWNLOAD_URL}"
   if ! curl -fsSL --retry 3 -o "${BIN_PATH}.new" "$DOWNLOAD_URL"; then
-    red "Download fehlgeschlagen. Existiert das Release?"
-    red "  → https://github.com/${REPO}/releases/latest"
+    red "Download fehlgeschlagen: $DOWNLOAD_URL"
+    red "  Bitte prüfen ob die Datei auf dem Server existiert."
     exit 1
   fi
   chmod +x "${BIN_PATH}.new"

@@ -17,12 +17,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$Repo       = 'hqapps777/customrflow-print-agent'
 $BinName    = 'xflow-print-agent.exe'
 $TaskName   = 'Customrflow Print Agent'
 $UiUrl      = 'http://localhost:38702/'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Customrflow'
 $BinPath    = Join-Path $InstallDir $BinName
+# Default download mirror (deine eigene Domain). Override via env:
+#   $env:CUSTOMRFLOW_AGENT_BASE_URL='https://my-server.local/agent'
+$BaseUrl    = if ($env:CUSTOMRFLOW_AGENT_BASE_URL) { $env:CUSTOMRFLOW_AGENT_BASE_URL } else { 'https://customrflow.com/agent' }
 
 function Write-Info($msg)  { Write-Host "→ $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)    { Write-Host "✓ $msg" -ForegroundColor Green }
@@ -43,14 +45,14 @@ function Cmd-Install {
   New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
   $asset = "xflow-print-agent-win-$arch.exe"
-  $url   = "https://github.com/$Repo/releases/latest/download/$asset"
+  $url   = "$BaseUrl/bin/$asset"
 
   Write-Info "Lade Binary von $url"
   try {
     Invoke-WebRequest -Uri $url -OutFile "$BinPath.new" -UseBasicParsing
   } catch {
-    Write-Err "Download fehlgeschlagen. Existiert das Release?"
-    Write-Err "  → https://github.com/$Repo/releases/latest"
+    Write-Err "Download fehlgeschlagen: $url"
+    Write-Err '  Bitte prüfen ob die Datei auf dem Server existiert.'
     exit 1
   }
   Move-Item -Force "$BinPath.new" $BinPath
