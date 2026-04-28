@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import pino from 'pino';
 import * as os from 'os';
-import { loadConfig, saveConfig } from './config';
+import { loadConfig, saveConfig, idempotencyCachePath } from './config';
 import { BackendClient } from './backend-client';
 import { renderEscPos } from './print/render-escpos';
 import { sendEscPosOverTcp } from './print/escpos-printer';
 import { renderCupsText, sendToCupsQueue } from './print/cups-printer';
-import { IdempotencyCache } from './idempotency-cache';
+import { PersistentIdempotencyCache } from './persistent-idempotency-cache';
+import { buildOnJob } from './job-handler';
 import { startLocalUi } from './web-ui/server';
 import { redeemPairingCode } from './pairing';
 import type { IncomingJob, PrinterConfig, HeartbeatPrinterStatus } from './types';
@@ -18,7 +19,8 @@ async function main(): Promise<void> {
   const cfg = await loadConfig();
   log.info(`xflow print-agent starting (backend: ${cfg.backendUrl})`);
 
-  const cache = new IdempotencyCache(100);
+  const cache = await PersistentIdempotencyCache.load(idempotencyCachePath());
+  log.info(`idempotency cache loaded (entries=${cache.size}) at ${idempotencyCachePath()}`);
   const printerStatus: Map<string, HeartbeatPrinterStatus> = new Map();
   const markStatus = (p: PrinterConfig, status: HeartbeatPrinterStatus['status'], err?: string) => {
     printerStatus.set(p.id, {
@@ -29,56 +31,19 @@ async function main(): Promise<void> {
     });
   };
 
-  const onJob = async (job: IncomingJob): Promise<{ status: 'PRINTED' | 'FAILED'; error?: string }> => {
-    if (cache.has(job.jobId)) {
-      log.warn({ jobId: job.jobId }, 'duplicate job suppressed (already in idempotency cache)');
-      return { status: 'PRINTED' };
-    }
-    // Look up printer locally first; fall back to data shipped in the job
-    // payload if it's a printer the dashboard created without a local mirror.
-    // Backend always sends host/port/protocol/paperWidth in job:new, so the
-    // agent never needs a local lookup as long as the job arrived.
-    let printer = cfg.printers.find((p) => p.id === job.printerId);
-    if (!printer) {
-      const j: any = job;
-      if (j.host || j.cupsQueue) {
-        printer = {
-          id: job.printerId,
-          displayName: j.printerId,
-          protocol: (j.protocol ?? 'ESCPOS_TCP') as any,
-          host: j.host,
-          port: j.port ?? 9100,
-          cupsQueue: j.cupsQueue,
-          paperWidth: (j.paperWidth ?? 'MM_80') as any,
-        };
-        log.info({ jobId: job.jobId, printerId: job.printerId }, 'printing via job-payload (no local mirror)');
-      } else {
-        return { status: 'FAILED', error: `unknown printer ${job.printerId} and no payload data` };
-      }
-    }
-    try {
-      if (printer.protocol === 'ESCPOS_TCP' || printer.protocol === 'STAR_LINE_TCP') {
-        if (!printer.host || !printer.port) throw new Error('printer has no host/port');
-        const dialect = printer.protocol === 'STAR_LINE_TCP' ? 'star-prnt' : 'esc-pos';
-        const buf = renderEscPos(job.payload, printer.paperWidth as any, dialect);
-        await sendEscPosOverTcp(printer.host, printer.port, buf);
-      } else if (printer.protocol === 'CUPS_IPP') {
-        if (!printer.cupsQueue) throw new Error('printer has no cups queue');
-        const text = renderCupsText(job.payload);
-        await sendToCupsQueue(printer.cupsQueue, text);
-      } else {
-        throw new Error(`unknown protocol ${printer.protocol}`);
-      }
-      cache.add(job.jobId);
-      markStatus(printer, 'ONLINE');
-      return { status: 'PRINTED' };
-    } catch (err) {
-      const msg = (err as Error).message;
-      markStatus(printer, 'OFFLINE', msg);
-      log.error({ jobId: job.jobId, err: msg }, 'print failed');
-      return { status: 'FAILED', error: msg };
-    }
-  };
+  const onJob = buildOnJob({
+    cache,
+    printers: cfg.printers,
+    sendEscPosOverTcp,
+    renderEscPos: renderEscPos as any,
+    sendToCupsQueue,
+    renderCupsText,
+    onPrinterStatus: markStatus,
+    log: {
+      warn: (m) => log.warn(m),
+      error: (m) => log.error(m),
+    },
+  });
 
   const onPair = async (code: string, displayName: string) => {
     const result = await redeemPairingCode(cfg.backendUrl, {

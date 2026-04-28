@@ -87,3 +87,7 @@ export async function saveConfig(cfg: AgentConfig): Promise<void> {
 export function configFilePath(): string {
   return CONFIG_FILE;
 }
+
+export function idempotencyCachePath(): string {
+  return path.join(CONFIG_DIR, 'idempotency.json');
+}
