@@ -1,8 +1,8 @@
 # Customrflow Print Agent — installer for Windows.
 #
-#   Install:    iex (irm https://customrflow.com/agent/install.ps1)
-#   Uninstall:  & ([scriptblock]::Create((irm https://customrflow.com/agent/install.ps1))) uninstall
-#   Restart:    & ([scriptblock]::Create((irm https://customrflow.com/agent/install.ps1))) restart
+#   Install:    iex (irm https://app.customrflow.com/agent/install.ps1)
+#   Uninstall:  & ([scriptblock]::Create((irm https://app.customrflow.com/agent/install.ps1))) uninstall
+#   Restart:    & ([scriptblock]::Create((irm https://app.customrflow.com/agent/install.ps1))) restart
 #   Update:     just re-run install — idempotent.
 #
 # Behavior:
@@ -24,7 +24,7 @@ $InstallDir = Join-Path $env:LOCALAPPDATA 'Customrflow'
 $BinPath    = Join-Path $InstallDir $BinName
 # Default download mirror (deine eigene Domain). Override via env:
 #   $env:CUSTOMRFLOW_AGENT_BASE_URL='https://my-server.local/agent'
-$BaseUrl    = if ($env:CUSTOMRFLOW_AGENT_BASE_URL) { $env:CUSTOMRFLOW_AGENT_BASE_URL } else { 'https://customrflow.com/agent' }
+$BaseUrl    = if ($env:CUSTOMRFLOW_AGENT_BASE_URL) { $env:CUSTOMRFLOW_AGENT_BASE_URL } else { 'https://app.customrflow.com/agent' }
 
 function Write-Info($msg)  { Write-Host "→ $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)    { Write-Host "✓ $msg" -ForegroundColor Green }
@@ -96,8 +96,8 @@ URL=$UiUrl
   Write-Host ''
   Write-Ok 'Installation abgeschlossen'
   Write-Host ''
-  Write-Host "Agent neu starten:  iex (irm https://customrflow.com/agent/install.ps1) restart"
-  Write-Host "Deinstallieren:     iex (irm https://customrflow.com/agent/install.ps1) uninstall"
+  Write-Host "Agent neu starten:  iex (irm https://app.customrflow.com/agent/install.ps1) restart"
+  Write-Host "Deinstallieren:     iex (irm https://app.customrflow.com/agent/install.ps1) uninstall"
   Write-Host "Browser-Verknüpfung auf dem Desktop öffnet jederzeit $UiUrl"
 }
 

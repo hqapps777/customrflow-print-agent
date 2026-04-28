@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Baut alle 5 Agent-Binaries lokal (kein CI, keine Signaturen) und legt sie
 # in dist-binaries/ ab — fertig zum Hochladen auf deinen Server unter
-# https://customrflow.com/agent/bin/xflow-print-agent-{os}-{arch}[.exe].
+# https://app.customrflow.com/agent/bin/xflow-print-agent-{os}-{arch}[.exe].
 #
 # Einmalig nötig:  npm install
 # Build:           ./scripts/build-binaries.sh

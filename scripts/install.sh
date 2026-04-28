@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Customrflow Print Agent — installer for macOS + Linux.
 #
-#   Install:    curl -sSL https://customrflow.com/agent/install.sh | bash
-#   Uninstall:  curl -sSL https://customrflow.com/agent/install.sh | bash -s uninstall
-#   Restart:    curl -sSL https://customrflow.com/agent/install.sh | bash -s restart
+#   Install:    curl -sSL https://app.customrflow.com/agent/install.sh | bash
+#   Uninstall:  curl -sSL https://app.customrflow.com/agent/install.sh | bash -s uninstall
+#   Restart:    curl -sSL https://app.customrflow.com/agent/install.sh | bash -s restart
 #   Update:     just re-run install — the script is idempotent.
 #
 # Behavior:
@@ -23,7 +23,7 @@ INSTALL_DIR="$HOME/.local/bin"
 BIN_PATH="$INSTALL_DIR/$BIN_NAME"
 # Default download mirror (deine eigene Domain). Override via env:
 #   CUSTOMRFLOW_AGENT_BASE_URL=https://my-server.local/agent ./install.sh
-BASE_URL="${CUSTOMRFLOW_AGENT_BASE_URL:-https://customrflow.com/agent}"
+BASE_URL="${CUSTOMRFLOW_AGENT_BASE_URL:-https://app.customrflow.com/agent}"
 
 red()    { printf "\033[31m%s\033[0m\n" "$*"; }
 green()  { printf "\033[32m%s\033[0m\n" "$*"; }
@@ -85,8 +85,8 @@ cmd_install() {
 $(green "✓ Installation abgeschlossen")
 
 Status prüfen:    $BIN_PATH --version
-Agent neu laden:  curl -sSL https://customrflow.com/agent/install.sh | bash -s restart
-Deinstallieren:   curl -sSL https://customrflow.com/agent/install.sh | bash -s uninstall
+Agent neu laden:  curl -sSL https://app.customrflow.com/agent/install.sh | bash -s restart
+Deinstallieren:   curl -sSL https://app.customrflow.com/agent/install.sh | bash -s uninstall
 
 Desktop-Verknüpfung "Drucker-Agent öffnen" → öffnet jederzeit ${UI_URL}
 EOF

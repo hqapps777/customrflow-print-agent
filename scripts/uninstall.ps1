@@ -1,7 +1,7 @@
 # Customrflow Print Agent — Uninstaller (Windows)
 #
 # Verwendung:
-#   iex (irm https://customrflow.com/agent/uninstall.ps1)
+#   iex (irm https://app.customrflow.com/agent/uninstall.ps1)
 #
 # Entfernt: Binary, Scheduled Task, Desktop-Verknüpfung.
 # Erhalten: Pairing-Daten unter %APPDATA%\xflow-print-agent\.

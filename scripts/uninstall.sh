@@ -2,7 +2,7 @@
 # Customrflow Print Agent — Uninstaller (macOS + Linux)
 #
 # Verwendung:
-#   curl -sSL https://customrflow.com/agent/uninstall.sh | bash
+#   curl -sSL https://app.customrflow.com/agent/uninstall.sh | bash
 #
 # Entfernt: Binary, LaunchAgent/systemd-Unit, Desktop-Verknüpfung.
 # Erhalten: Pairing-Daten unter ~/.config/xflow-print-agent/ (manuell löschen

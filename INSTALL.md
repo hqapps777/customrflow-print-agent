@@ -8,13 +8,13 @@ Browser-Warnungen. Funktioniert auf macOS, Linux und Windows.
 ## macOS / Linux
 
 ```bash
-curl -sSL https://customrflow.com/agent/install.sh | bash
+curl -sSL https://app.customrflow.com/agent/install.sh | bash
 ```
 
 ## Windows (PowerShell)
 
 ```powershell
-iex (irm https://customrflow.com/agent/install.ps1)
+iex (irm https://app.customrflow.com/agent/install.ps1)
 ```
 
 ---
@@ -38,8 +38,8 @@ Scheduler — je nach OS).
 | Befehl | macOS / Linux | Windows |
 |---|---|---|
 | **Aktualisieren** | nochmal Install-Befehl ausführen | nochmal Install-Befehl ausführen |
-| **Neu starten** | `curl -sSL https://customrflow.com/agent/install.sh \| bash -s restart` | `iex (irm https://customrflow.com/agent/install.ps1) restart` |
-| **Deinstallieren** | `curl -sSL https://customrflow.com/agent/uninstall.sh \| bash` | `iex (irm https://customrflow.com/agent/uninstall.ps1)` |
+| **Neu starten** | `curl -sSL https://app.customrflow.com/agent/install.sh \| bash -s restart` | `iex (irm https://app.customrflow.com/agent/install.ps1) restart` |
+| **Deinstallieren** | `curl -sSL https://app.customrflow.com/agent/uninstall.sh \| bash` | `iex (irm https://app.customrflow.com/agent/uninstall.ps1)` |
 
 ---
 
@@ -56,7 +56,7 @@ Dann `dist-binaries/*` und `scripts/{install,uninstall}.{sh,ps1}` auf den
 eigenen Server unter `/agent/` und `/agent/bin/` hochladen — fertig.
 
 Die Install-Scripts ziehen das Binary von
-`https://customrflow.com/agent/bin/xflow-print-agent-{os}-{arch}[.exe]`.
+`https://app.customrflow.com/agent/bin/xflow-print-agent-{os}-{arch}[.exe]`.
 
 Eigene Domain für Tests:
 
