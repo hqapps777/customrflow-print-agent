@@ -339,11 +339,15 @@ async function renderAll() {
       <div class="card">
         <h3>Pairing</h3>
         <p class="muted">Gib den 6-stelligen Code aus dem Customrflow-Dashboard ein.</p>
-        <form onsubmit="pair(event)" class="row">
+        <form onsubmit="pair(event)" class="row" oninput="hidePairError()">
           <input name="code" pattern="\\\\d{6}" placeholder="123456" required style="width:8em">
           <input name="name" placeholder="Anzeigename dieses Agents" required style="flex:1;min-width:10em">
           <button type="submit" class="primary">Pairen</button>
         </form>
+        <div id="pair-error" hidden style="margin-top:.9em;padding:.8em 1em;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:6px;font-size:.95em;">
+          <b>Pairing fehlgeschlagen:</b> <span id="pair-error-msg"></span>
+          <div class="muted" id="pair-error-hint" style="margin-top:.4em;color:#7f1d1d;font-size:.85em;"></div>
+        </div>
       </div>\`;
   } else {
     el('pairing').innerHTML = '';
@@ -377,17 +381,58 @@ function renderPrinterList(printers) {
   el('printer-list').appendChild(ul);
 }
 
+function hidePairError() {
+  const box = el('pair-error');
+  if (box) box.hidden = true;
+}
+
+function showPairError(message) {
+  const box = el('pair-error');
+  const msg = el('pair-error-msg');
+  const hint = el('pair-error-hint');
+  if (!box || !msg || !hint) return;
+  msg.textContent = message || 'Unbekannter Fehler';
+  // Heuristik: passende Hilfestellung anhängen, damit der User direkt weiß
+  // was zu tun ist — Backend-Message alleine ("invalid or expired") sagt
+  // einem Nicht-Techniker nichts.
+  const lower = (message || '').toLowerCase();
+  if (lower.includes('expired') || lower.includes('invalid')) {
+    hint.textContent =
+      'Code ist 10 Minuten gültig und kann nur einmal eingelöst werden. Erzeuge im Dashboard einen neuen Code und gib ihn sofort hier ein.';
+  } else if (lower.includes('too many') || lower.includes('throttl')) {
+    hint.textContent =
+      'Zu viele Versuche in kurzer Zeit. Warte eine Minute und probiere es erneut.';
+  } else if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('timeout')) {
+    hint.textContent =
+      'Backend nicht erreichbar. Prüfe die Internetverbindung — der Agent verbindet sich gegen die in der Status-Box gezeigte Backend-URL.';
+  } else {
+    hint.textContent = '';
+  }
+  box.hidden = false;
+}
+
 async function pair(ev) {
   ev.preventDefault();
   const f = ev.target;
-  const r = await fetch('/api/pair', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: f.code.value, displayName: f.name.value }),
-  });
-  const j = await r.json();
-  if (j.ok) { toast('Gepaart!', '#059669'); await renderAll(); }
-  else { toast('Fehler: ' + j.error, '#dc2626'); }
+  hidePairError();
+  let r, j;
+  try {
+    r = await fetch('/api/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: f.code.value, displayName: f.name.value }),
+    });
+    j = await r.json();
+  } catch (e) {
+    showPairError('Verbindung zum Agent-Service abgebrochen: ' + e.message);
+    return;
+  }
+  if (j.ok) {
+    toast('Gepaart!', '#059669');
+    await renderAll();
+  } else {
+    showPairError(j.error);
+  }
 }
 
 async function scan() {

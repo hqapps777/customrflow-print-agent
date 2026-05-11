@@ -40,7 +40,20 @@ export async function redeemPairingCode(
             reject(new Error(`bad JSON from backend: ${(e as Error).message}`));
           }
         } else {
-          reject(new Error(`pairing failed: ${res.statusCode} ${body}`));
+          // Backend (NestJS) returns JSON errors of shape
+          // { statusCode, message, ... }. Unwrap to a clean message
+          // so the UI can surface the actual reason instead of the
+          // entire envelope. Falls back to raw body on parse failure.
+          let message = body;
+          try {
+            const parsed = JSON.parse(body) as { message?: unknown };
+            if (typeof parsed.message === 'string') message = parsed.message;
+            else if (Array.isArray(parsed.message))
+              message = parsed.message.join('; ');
+          } catch {
+            // non-JSON body — keep as-is
+          }
+          reject(new Error(message || `pairing failed (HTTP ${res.statusCode})`));
         }
       });
     });
