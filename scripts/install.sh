@@ -138,9 +138,28 @@ install_macos_launchagent() {
 </plist>
 EOF
 
-  # Reload (bootout if existed)
+  # Reload (bootout if existed). bootout is async — it sends SIGTERM but the
+  # process + service-registry lock take ~200-500ms to actually clear. If we
+  # bootstrap immediately we get "Bootstrap failed: 5: Input/output error"
+  # because port 38701 is still bound or the launchd registry slot is held.
+  # Poll until `launchctl print` no longer finds the service (max 4s).
   launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$plist"
+  local _i=0
+  while [ "$_i" -lt 20 ] && launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1; do
+    sleep 0.2
+    _i=$((_i + 1))
+  done
+
+  if ! launchctl bootstrap "gui/$(id -u)" "$plist" 2>/tmp/customrflow-bootstrap.err; then
+    # Second try in case the registry was still settling — has been observed
+    # on reinstall over an already-running 38701-bound agent.
+    sleep 1
+    if ! launchctl bootstrap "gui/$(id -u)" "$plist" 2>>/tmp/customrflow-bootstrap.err; then
+      red "LaunchAgent-Load fehlgeschlagen — Details: /tmp/customrflow-bootstrap.err"
+      red "  Workaround: 'launchctl bootout gui/\$UID/${LABEL}' und Skript erneut ausführen."
+      exit 1
+    fi
+  fi
   green "✓ LaunchAgent geladen — Agent startet bei jedem Login automatisch"
 }
 
